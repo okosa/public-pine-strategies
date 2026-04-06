@@ -1,0 +1,64 @@
+//@version=6
+strategy("Gold with Real Yield Bias Filter", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=15)
+
+atrPeriod       = input.int(10, "ATR Length", minval=1)
+factor          = input.float(3.0, "Factor", step=0.01)
+goldSymbol      = input.symbol("COMEX:GC1!", "Gold Symbol")
+realYieldSymbol = input.symbol("FRED:DFII10", "Real Yield Symbol")
+
+calc_supertrend(h, l, c, atrLen, mult) =>
+    tr  = math.max(h - l, math.max(math.abs(h - c[1]), math.abs(l - c[1])))
+    atr = ta.rma(tr, atrLen)
+
+    hl2 = (h + l) / 2.0
+    upperBand = hl2 + mult * atr
+    lowerBand = hl2 - mult * atr
+
+    var float finalUpper = na
+    var float finalLower = na
+    var int dir = na
+
+    finalUpper := na(finalUpper[1]) ? upperBand : (upperBand < finalUpper[1] or c[1] > finalUpper[1] ? upperBand : finalUpper[1])
+    finalLower := na(finalLower[1]) ? lowerBand : (lowerBand > finalLower[1] or c[1] < finalLower[1] ? lowerBand : finalLower[1])
+
+    dir := na(dir[1]) ? 1 : dir[1]
+    dir := dir == -1 and c > finalUpper[1] ? 1 : dir == 1 and c < finalLower[1] ? -1 : dir
+
+    st = dir == 1 ? finalLower : finalUpper
+    [st, dir]
+
+goldHigh  = request.security(goldSymbol, timeframe.period, high)
+goldLow   = request.security(goldSymbol, timeframe.period, low)
+goldClose = request.security(goldSymbol, timeframe.period, close)
+[goldSt, goldDir] = calc_supertrend(goldHigh, goldLow, goldClose, atrPeriod, factor)
+
+realHigh  = request.security(realYieldSymbol, timeframe.period, high)
+realLow   = request.security(realYieldSymbol, timeframe.period, low)
+realClose = request.security(realYieldSymbol, timeframe.period, close)
+[realSt, realDir] = calc_supertrend(realHigh, realLow, realClose, atrPeriod, factor)
+
+goldBull = goldDir == 1
+goldBear = goldDir == -1
+realBull = realDir == 1
+realBear = realDir == -1
+
+goldBullFlip = goldBull and not goldBull[1]
+goldBearFlip = goldBear and not goldBear[1]
+
+longSignal  = goldBullFlip and realBear
+shortSignal = goldBearFlip and realBull
+
+if longSignal
+    strategy.entry("Long", strategy.long)
+
+if shortSignal
+    strategy.entry("Short", strategy.short)
+
+if strategy.position_size > 0 and goldBear
+    strategy.close("Long")
+
+if strategy.position_size < 0 and goldBull
+    strategy.close("Short")
+
+plot(goldSt, "Gold Supertrend", color=goldBull ? color.green : color.red, linewidth=2)
+plot(realSt, "DFII10 Supertrend", color=realBull ? color.orange : color.blue, linewidth=2)

@@ -1,0 +1,89 @@
+//@version=6
+strategy("EURUSD with EU02Y-US02Y + EUIRYY-USIRYY Filters", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=15)
+
+atrPeriod    = input.int(10, "ATR Length", minval=1)
+factor       = input.float(3.0, "Factor", step=0.01)
+fxSymbol     = input.symbol("OANDA:EURUSD", "FX Symbol")
+eu2ySymbol   = input.symbol("TVC:EU02Y", "EU 2Y Yield")
+us2ySymbol   = input.symbol("TVC:US02Y", "US 2Y Yield")
+euInflSymbol = input.symbol("ECONOMICS:EUIRYY", "EU Inflation Rate")
+usInflSymbol = input.symbol("ECONOMICS:USIRYY", "US Inflation Rate")
+
+calc_supertrend(h, l, c, atrLen, mult) =>
+    tr  = math.max(h - l, math.max(math.abs(h - c[1]), math.abs(l - c[1])))
+    atr = ta.rma(tr, atrLen)
+
+    hl2 = (h + l) / 2.0
+    upperBand = hl2 + mult * atr
+    lowerBand = hl2 - mult * atr
+
+    var float finalUpper = na
+    var float finalLower = na
+    var int dir = na
+
+    finalUpper := na(finalUpper[1]) ? upperBand : (upperBand < finalUpper[1] or c[1] > finalUpper[1] ? upperBand : finalUpper[1])
+    finalLower := na(finalLower[1]) ? lowerBand : (lowerBand > finalLower[1] or c[1] < finalLower[1] ? lowerBand : finalLower[1])
+
+    dir := na(dir[1]) ? 1 : dir[1]
+    dir := dir == -1 and c > finalUpper[1] ? 1 : dir == 1 and c < finalLower[1] ? -1 : dir
+
+    st = dir == 1 ? finalLower : finalUpper
+    [st, dir]
+
+fxHigh  = request.security(fxSymbol, timeframe.period, high)
+fxLow   = request.security(fxSymbol, timeframe.period, low)
+fxClose = request.security(fxSymbol, timeframe.period, close)
+[fxSt, fxDir] = calc_supertrend(fxHigh, fxLow, fxClose, atrPeriod, factor)
+
+eu2High  = request.security(eu2ySymbol, timeframe.period, high)
+eu2Low   = request.security(eu2ySymbol, timeframe.period, low)
+eu2Close = request.security(eu2ySymbol, timeframe.period, close)
+us2High  = request.security(us2ySymbol, timeframe.period, high)
+us2Low   = request.security(us2ySymbol, timeframe.period, low)
+us2Close = request.security(us2ySymbol, timeframe.period, close)
+
+yieldHigh  = eu2High  - us2High
+yieldLow   = eu2Low   - us2Low
+yieldClose = eu2Close - us2Close
+[yieldSt, yieldDir] = calc_supertrend(yieldHigh, yieldLow, yieldClose, atrPeriod, factor)
+
+euInflHigh  = request.security(euInflSymbol, timeframe.period, high)
+euInflLow   = request.security(euInflSymbol, timeframe.period, low)
+euInflClose = request.security(euInflSymbol, timeframe.period, close)
+usInflHigh  = request.security(usInflSymbol, timeframe.period, high)
+usInflLow   = request.security(usInflSymbol, timeframe.period, low)
+usInflClose = request.security(usInflSymbol, timeframe.period, close)
+
+inflHigh  = euInflHigh  - usInflHigh
+inflLow   = euInflLow   - usInflLow
+inflClose = euInflClose - usInflClose
+[inflSt, inflDir] = calc_supertrend(inflHigh, inflLow, inflClose, atrPeriod, factor)
+
+fxBull    = fxDir == 1
+fxBear    = fxDir == -1
+yieldBull = yieldDir == 1
+yieldBear = yieldDir == -1
+inflBull  = inflDir == 1
+inflBear  = inflDir == -1
+
+allBull = fxBull and yieldBull and inflBull
+allBear = fxBear and yieldBear and inflBear
+
+longSignal  = allBull and not allBull[1]
+shortSignal = allBear and not allBear[1]
+
+if longSignal
+    strategy.entry("Long", strategy.long)
+
+if shortSignal
+    strategy.entry("Short", strategy.short)
+
+if strategy.position_size > 0 and not allBull
+    strategy.close("Long")
+
+if strategy.position_size < 0 and not allBear
+    strategy.close("Short")
+
+plot(fxSt, "EURUSD Supertrend", color=fxBull ? color.green : color.red, linewidth=2)
+plot(yieldSt, "EU02Y-US02Y Supertrend", color=yieldBull ? color.blue : color.orange, linewidth=2)
+plot(inflSt, "EUIRYY-USIRYY Supertrend", color=inflBull ? color.purple : color.maroon, linewidth=2)

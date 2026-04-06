@@ -1,0 +1,89 @@
+//@version=6
+strategy("USDJPY with 2Y Yield Spread + Inflation Spread Filters", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=15)
+
+atrPeriod    = input.int(10, "ATR Length", minval=1)
+factor       = input.float(3.0, "Factor", step=0.01)
+fxSymbol     = input.symbol("OANDA:USDJPY", "FX Symbol")
+us2ySymbol   = input.symbol("TVC:US02Y", "US 2Y Yield")
+jp2ySymbol   = input.symbol("TVC:JP02Y", "JP 2Y Yield")
+usInflSymbol = input.symbol("ECONOMICS:USIRYY", "US Inflation Rate")
+jpInflSymbol = input.symbol("ECONOMICS:JPIRYY", "Japan Inflation Rate")
+
+calc_supertrend(h, l, c, atrLen, mult) =>
+    tr  = math.max(h - l, math.max(math.abs(h - c[1]), math.abs(l - c[1])))
+    atr = ta.rma(tr, atrLen)
+
+    hl2 = (h + l) / 2.0
+    upperBand = hl2 + mult * atr
+    lowerBand = hl2 - mult * atr
+
+    var float finalUpper = na
+    var float finalLower = na
+    var int dir = na
+
+    finalUpper := na(finalUpper[1]) ? upperBand : (upperBand < finalUpper[1] or c[1] > finalUpper[1] ? upperBand : finalUpper[1])
+    finalLower := na(finalLower[1]) ? lowerBand : (lowerBand > finalLower[1] or c[1] < finalLower[1] ? lowerBand : finalLower[1])
+
+    dir := na(dir[1]) ? 1 : dir[1]
+    dir := dir == -1 and c > finalUpper[1] ? 1 : dir == 1 and c < finalLower[1] ? -1 : dir
+
+    st = dir == 1 ? finalLower : finalUpper
+    [st, dir]
+
+fxHigh  = request.security(fxSymbol, timeframe.period, high)
+fxLow   = request.security(fxSymbol, timeframe.period, low)
+fxClose = request.security(fxSymbol, timeframe.period, close)
+[fxSt, fxDir] = calc_supertrend(fxHigh, fxLow, fxClose, atrPeriod, factor)
+
+us2High  = request.security(us2ySymbol, timeframe.period, high)
+us2Low   = request.security(us2ySymbol, timeframe.period, low)
+us2Close = request.security(us2ySymbol, timeframe.period, close)
+jp2High  = request.security(jp2ySymbol, timeframe.period, high)
+jp2Low   = request.security(jp2ySymbol, timeframe.period, low)
+jp2Close = request.security(jp2ySymbol, timeframe.period, close)
+
+yieldHigh  = us2High  - jp2High
+yieldLow   = us2Low   - jp2Low
+yieldClose = us2Close - jp2Close
+[yieldSt, yieldDir] = calc_supertrend(yieldHigh, yieldLow, yieldClose, atrPeriod, factor)
+
+usInflHigh  = request.security(usInflSymbol, timeframe.period, high)
+usInflLow   = request.security(usInflSymbol, timeframe.period, low)
+usInflClose = request.security(usInflSymbol, timeframe.period, close)
+jpInflHigh  = request.security(jpInflSymbol, timeframe.period, high)
+jpInflLow   = request.security(jpInflSymbol, timeframe.period, low)
+jpInflClose = request.security(jpInflSymbol, timeframe.period, close)
+
+inflHigh  = usInflHigh  - jpInflHigh
+inflLow   = usInflLow   - jpInflLow
+inflClose = usInflClose - jpInflClose
+[inflSt, inflDir] = calc_supertrend(inflHigh, inflLow, inflClose, atrPeriod, factor)
+
+fxBull    = fxDir == 1
+fxBear    = fxDir == -1
+yieldBull = yieldDir == 1
+yieldBear = yieldDir == -1
+inflBull  = inflDir == 1
+inflBear  = inflDir == -1
+
+allBull = fxBull and yieldBull and inflBull
+allBear = fxBear and yieldBear and inflBear
+
+longSignal  = allBull and not allBull[1]
+shortSignal = allBear and not allBear[1]
+
+if longSignal
+    strategy.entry("Long", strategy.long)
+
+if shortSignal
+    strategy.entry("Short", strategy.short)
+
+if strategy.position_size > 0 and not allBull
+    strategy.close("Long")
+
+if strategy.position_size < 0 and not allBear
+    strategy.close("Short")
+
+plot(fxSt, "USDJPY Supertrend", color=fxBull ? color.green : color.red, linewidth=2)
+plot(yieldSt, "US02Y-JP02Y Supertrend", color=yieldBull ? color.blue : color.orange, linewidth=2)
+plot(inflSt, "USIRYY-JPIRYY Supertrend", color=inflBull ? color.purple : color.maroon, linewidth=2)

@@ -1,0 +1,72 @@
+//@version=6
+strategy("CL with CL1-CL2 Supertrend Filter", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=15)
+
+atrPeriod   = input.int(10, "ATR Length", minval=1)
+factor      = input.float(3.0, "Factor", step=0.01)
+frontSymbol = input.symbol("NYMEX:CL1!", "Front Contract")
+nextSymbol  = input.symbol("NYMEX:CL2!", "Next Contract")
+tradeLongs  = input.bool(true, "Enable Longs")
+tradeShorts = input.bool(true, "Enable Shorts")
+
+calc_supertrend(h, l, c, atrLen, mult) =>
+    tr  = math.max(h - l, math.max(math.abs(h - c[1]), math.abs(l - c[1])))
+    atr = ta.rma(tr, atrLen)
+
+    hl2 = (h + l) / 2.0
+    upperBand = hl2 + mult * atr
+    lowerBand = hl2 - mult * atr
+
+    var float finalUpper = na
+    var float finalLower = na
+    var int dir = na
+
+    finalUpper := na(finalUpper[1]) ? upperBand : (upperBand < finalUpper[1] or c[1] > finalUpper[1] ? upperBand : finalUpper[1])
+    finalLower := na(finalLower[1]) ? lowerBand : (lowerBand > finalLower[1] or c[1] < finalLower[1] ? lowerBand : finalLower[1])
+
+    dir := na(dir[1]) ? 1 : dir[1]
+    dir := dir == -1 and c > finalUpper[1] ? 1 : dir == 1 and c < finalLower[1] ? -1 : dir
+
+    st = dir == 1 ? finalLower : finalUpper
+    [st, dir]
+
+[priceSt, priceDir] = calc_supertrend(high, low, close, atrPeriod, factor)
+
+fHigh  = request.security(frontSymbol, timeframe.period, high)
+fLow   = request.security(frontSymbol, timeframe.period, low)
+fClose = request.security(frontSymbol, timeframe.period, close)
+
+nHigh  = request.security(nextSymbol, timeframe.period, high)
+nLow   = request.security(nextSymbol, timeframe.period, low)
+nClose = request.security(nextSymbol, timeframe.period, close)
+
+spreadHigh  = fHigh  - nHigh
+spreadLow   = fLow   - nLow
+spreadClose = fClose - nClose
+
+[spreadSt, spreadDir] = calc_supertrend(spreadHigh, spreadLow, spreadClose, atrPeriod, factor)
+
+priceBull  = priceDir == 1
+priceBear  = priceDir == -1
+spreadBull = spreadDir == 1
+spreadBear = spreadDir == -1
+
+bothBull = priceBull and spreadBull
+bothBear = priceBear and spreadBear
+
+longSignal  = tradeLongs and bothBull and not bothBull[1]
+shortSignal = tradeShorts and bothBear and not bothBear[1]
+
+if longSignal
+    strategy.entry("Long", strategy.long)
+
+if shortSignal
+    strategy.entry("Short", strategy.short)
+
+if strategy.position_size > 0 and not bothBull
+    strategy.close("Long")
+
+if strategy.position_size < 0 and not bothBear
+    strategy.close("Short")
+
+plot(priceSt, "CL Supertrend", color=priceBull ? color.green : color.red, linewidth=2)
+plot(spreadSt, "CL1-CL2 Spread Supertrend", color=spreadBull ? color.blue : color.orange, linewidth=2)
