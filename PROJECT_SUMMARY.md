@@ -80,3 +80,13 @@ This repository is intended as a portfolio artifact demonstrating:
 - backtest-driven iteration
 - Pine Script implementation
 - disciplined separation between idea generation and edge preservation
+
+## Relevance to Trading and Analytics Roles
+
+This project demonstrates the ability to:
+
+- turn qualitative market views into structured decision rules
+- compare competing strategy ideas using evidence instead of narrative preference
+- identify where edge is actually coming from
+- build reusable tools for screening, confirmation, and execution logic
+- communicate research clearly without disclosing sensitive implementation details

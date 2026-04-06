@@ -1,6 +1,6 @@
 # Public Pine Strategies
 
-Public Pine Script strategy bundle showing a systematic research workflow across index futures, FX, crude oil, and gold.
+Public Pine Script strategy bundle demonstrating systematic trading research across index futures, FX, crude oil, and gold. The repository is intended as a portfolio artifact showing how market ideas can be translated into structured rule sets, tested, refined, and packaged into reusable tools.
 
 ## Included Scripts
 
@@ -16,6 +16,16 @@ Public Pine Script strategy bundle showing a systematic research workflow across
 - Use of spread confirmation and intermarket filters
 - Asset-specific logic instead of one generic model
 - Research structure that separates trigger, filter, and exit logic
+
+## Skills Demonstrated
+
+- systematic strategy research
+- hypothesis testing through backtesting
+- signal design using spreads, yields, inflation, and price
+- asset-specific framework design
+- post-trade review and iterative refinement
+- Pine Script implementation for trading logic
+- clear separation between public research artifacts and private edge
 
 ## Public vs Private Logic
 
@@ -65,6 +75,10 @@ Gold strategy using real yields as a directional bias filter with price as the e
 ## Portfolio Summary
 
 A one-page summary of the project is available in [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md).
+
+## Results Framing
+
+The scripts in this repository are public-safe research versions. Some produced encouraging historical results in testing, but the goal of the repository is to demonstrate research process, strategy design, and implementation discipline rather than publish a complete production-ready trading stack.
 
 ## Disclaimer
 
